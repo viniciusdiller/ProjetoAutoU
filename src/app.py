@@ -4,6 +4,10 @@ from flask import Flask, request, jsonify, render_template, Response
 import google.generativeai as genai
 from dotenv import load_dotenv
 import pypdf
+import nltk                                # NOVO: Importa NLTK
+from nltk.corpus import stopwords          # NOVO: Para Stop Words
+from nltk.stem import RSLPStemmer          # NOVO: Para Stemming em Português
+import re 
 
 # Lógica de importação para suportar o ambiente serverless (Vercel)
 try:
@@ -20,6 +24,31 @@ except ImportError as e:
 
 
 load_dotenv()
+
+NLTK_DATA_DIR = '/tmp/nltk_data'
+os.makedirs(NLTK_DATA_DIR, exist_ok=True)
+nltk.data.path.append(NLTK_DATA_DIR)
+
+# Tenta fazer o download dos recursos necessários, se não existirem
+def setup_nltk_data():
+    """Garante que os dados do NLTK necessários para Português estejam em /tmp."""
+    try:
+        # Tenta carregar os dados
+        stopwords.words('portuguese')
+        nltk.data.find('tokenizers/punkt')
+        nltk.data.find('corpora/rslp')
+    except (LookupError, FileNotFoundError):
+        print("Baixando dados do NLTK para /tmp...")
+        try:
+            # Baixa os módulos necessários
+            nltk.download('stopwords', download_dir=NLTK_DATA_DIR)
+            nltk.download('rslp', download_dir=NLTK_DATA_DIR)
+            nltk.download('punkt', download_dir=NLTK_DATA_DIR) 
+            print("Download do NLTK concluído.")
+        except Exception as e:
+            print(f"Erro ao baixar dados do NLTK: {e}")
+
+setup_nltk_data()
 
 # Ajusta o root_path para encontrar as pastas 'templates' e 'static' no diretório pai,
 # após mover 'app.py' para a pasta 'src/'.
@@ -60,6 +89,29 @@ O JSON de saída deve ter a seguinte estrutura em inglês:
 Retorne apenas o JSON, sem nenhum texto, markdown ou explicação adicional.
 """
 
+def preprocess_text_nlp(text):
+    """
+    Executa Limpeza, Tokenização, Remoção de Stop Words e Stemming (RSLP) em Português.
+    """
+    # 1. Limpeza básica (converter para minúsculas e remover pontuação)
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', '', text) 
+
+    # 2. Tokenização
+    tokens = nltk.word_tokenize(text, language='portuguese')
+
+    # 3. Remoção de Stop Words
+    stop_words = set(stopwords.words('portuguese'))
+    # Filtra tokens que não estão na lista de stop words e que não são apenas espaços em branco
+    filtered_tokens = [word for word in tokens if word not in stop_words and word.strip()]
+
+    # 4. Stemming (Redução ao radical - RSLP para Português)
+    stemmer = RSLPStemmer()
+    stemmed_tokens = [stemmer.stem(word) for word in filtered_tokens]
+    
+    # Retorna o texto pré-processado como uma string, separado por espaço
+    return ' '.join(stemmed_tokens)
+
 @app.route('/')
 def index():
     """Renderiza a página inicial e garante a inicialização do DB (necessário no Serverless)."""
@@ -96,45 +148,45 @@ def classify_email():
                 print(f"Erro ao processar PDF: {e}")
                 return jsonify({'error': f'Falha ao processar o arquivo PDF. Verifique se o texto é legível.'}), 400
 
-    if not email_content.strip():
-        return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
+        if not email_content.strip():
+            return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
 
-    try:
-        prompt = PROMPT_TEMPLATE.format(email_content=email_content)
-        response = model.generate_content(prompt)
-
-        # Limpa a resposta da IA para extrair apenas o JSON
-        cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
-
-        # Tenta analisar o JSON e trata erros
         try:
-            result_json = json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
-            return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
+            prompt = PROMPT_TEMPLATE.format(email_content=email_content)
+            response = model.generate_content(prompt)
 
-        # Salva a classificação no histórico
-        classification = result_json.get("classification", "Desconhecido")
-        confidence_score = result_json.get("confidence_score", 0.0)
-        suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
-        
-        # Garante que confidence_score seja um float
-        if not isinstance(confidence_score, (int, float)):
+            # Limpa a resposta da IA para extrair apenas o JSON
+            cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
+
+            # Tenta analisar o JSON e trata erros
             try:
-                confidence_score = float(confidence_score)
-            except ValueError:
-                confidence_score = 0.0 
-                
-        insert_classification(classification, confidence_score, suggested_response, email_content)
+                result_json = json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
+                return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
 
-        return jsonify(result_json)
+            # Salva a classificação no histórico
+            classification = result_json.get("classification", "Desconhecido")
+            confidence_score = result_json.get("confidence_score", 0.0)
+            suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
+            
+            # Garante que confidence_score seja um float
+            if not isinstance(confidence_score, (int, float)):
+                try:
+                    confidence_score = float(confidence_score)
+                except ValueError:
+                    confidence_score = 0.0 
+                    
+            insert_classification(classification, confidence_score, suggested_response, email_content)
 
-    except genai.types.generation_types.StopCandidateException as e:
-        print(f"Geração interrompida pela IA: {e}")
-        return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
-    except Exception as e:
-        print(f"Ocorreu um erro inesperado: {e}")
-        return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
+            return jsonify(result_json)
+
+        except genai.types.generation_types.StopCandidateException as e:
+            print(f"Geração interrompida pela IA: {e}")
+            return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
+        except Exception as e:
+            print(f"Ocorreu um erro inesperado: {e}")
+            return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
 
 @app.route('/history')
 def history():
