@@ -8,14 +8,24 @@ if os.getenv('VERCEL'):
 else:
     DATABASE_NAME = 'emails.db'
 
-def add_column_if_not_exists(cursor, column_name, column_type):
-    """Adiciona uma coluna à tabela 'classifications' se ela ainda não existir."""
-    try:
-        # Tenta selecionar a coluna. Se falhar, ela não existe.
-        cursor.execute(f"SELECT {column_name} FROM classifications LIMIT 1")
-    except sqlite3.OperationalError:
+def add_column_if_not_exists(conn, column_name, column_type):
+    """Adiciona uma coluna à tabela 'classifications' se ela ainda não existir usando PRAGMA."""
+    cursor = conn.cursor()
+    
+    # Verifica as colunas existentes usando PRAGMA table_info
+    # Colunas de interesse estão no índice 1 (nome da coluna)
+    cursor.execute("PRAGMA table_info(classifications)")
+    columns = [info[1] for info in cursor.fetchall()]
+
+    if column_name not in columns:
         print(f"ADICIONANDO COLUNA: {column_name}")
-        cursor.execute(f"ALTER TABLE classifications ADD COLUMN {column_name} {column_type}")
+        try:
+            cursor.execute(f"ALTER TABLE classifications ADD COLUMN {column_name} {column_type}")
+            conn.commit()
+            print(f"Coluna {column_name} adicionada com sucesso.")
+        except sqlite3.OperationalError as e:
+            # Captura erros se o ALTER TABLE falhar por algum motivo (tabela bloqueada, etc.)
+            print(f"AVISO: Coluna {column_name} já pode existir ou erro de ALTER TABLE: {e}")
 
 def initialize_db():
     # Cria a tabela de histórico se ela não existir
@@ -23,7 +33,7 @@ def initialize_db():
     cursor = conn.cursor()
     
     # 1. Criação da Tabela (se não existir)
-    # Inclui todos os campos mais recentes
+    # Garante a criação com todos os campos mais recentes, mas não a modifica se já existir.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS classifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,12 +46,13 @@ def initialize_db():
             sentiment TEXT  
         )
     """)
-    
-    # 2. Lógica de Migração (Garante que colunas de versões anteriores sejam adicionadas)
-    add_column_if_not_exists(cursor, 'key_topic', 'TEXT')
-    add_column_if_not_exists(cursor, 'sentiment', 'TEXT')
-    
     conn.commit()
+    
+    # 2. Lógica de Migração para Atualizar Schemas Antigos
+    # Chama a função de migração
+    add_column_if_not_exists(conn, 'key_topic', 'TEXT')
+    add_column_if_not_exists(conn, 'sentiment', 'TEXT')
+    
     conn.close()
 
 def insert_classification(classification, confidence_score, key_topic, sentiment, suggested_response, email_content):
@@ -49,7 +60,6 @@ def insert_classification(classification, confidence_score, key_topic, sentiment
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     created_at = datetime.datetime.now().isoformat()
-    # A ordem dos campos na query deve corresponder à ordem na chamada da função em app.py
     cursor.execute("""
         INSERT INTO classifications (classification, confidence_score, key_topic, sentiment, suggested_response, email_content, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
