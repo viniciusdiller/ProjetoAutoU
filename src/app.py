@@ -76,12 +76,13 @@ def get_or_create_user_id():
     return session['user_id']
 
 
+
 @app.route('/')
 def index():
     """Renderiza a página inicial e garante o ID de sessão."""
     initialize_db()
-    # Cria ou recupera o ID de sessão do usuário
-    get_or_create_user_id()
+    # GARANTE que o ID é criado imediatamente
+    get_or_create_user_id() 
     return render_template('index.html')
 
 @app.route('/classify', methods=['POST'])
@@ -92,7 +93,7 @@ def classify_email():
     if not model:
         return jsonify({'error': 'O modelo de IA não foi inicializado. Verifique a chave da API.'}), 503
     
-    # OBTÉM O ID DE SESSÃO DO USUÁRIO
+    # MOVIDO PARA CIMA: OBTÉM O ID DE SESSÃO DO USUÁRIO IMEDIATAMENTE
     user_id = get_or_create_user_id()
 
     email_content = ""
