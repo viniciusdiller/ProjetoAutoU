@@ -8,3 +8,4 @@ protobuf
 grpcio
 pypdf
 nltk
+psycopg2-binary
