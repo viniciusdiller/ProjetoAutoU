@@ -621,32 +621,7 @@ background-color: var(--success-color);
     padding: 1rem; /* Um pouco menor para itens dentro da análise individual */
 }
 
-.suggested-response-textarea {
-  /* --- Estrutura e Tamanho --- */
-  width: 100%;
-  min-height: 150px;
-  padding: 1rem;
-  resize: vertical; /* Permite que o usuário redimensione apenas na vertical */
 
-  /* --- Visual --- */
-  font-family: inherit; /* Usa a mesma fonte do site (Inter) */
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--text-color);
-  background-color: #ffffff; /* Fundo branco limpo */
-  border: 1px solid var(--border-color); /* Borda cinza clara, igual aos cards */
-  border-radius: 8px; /* Cantos arredondados para combinar */
-  
-  /* --- Efeitos --- */
-  transition: all 0.2s ease-in-out; /* Animação suave para a borda e sombra */
-}
-
-/* Efeito ao clicar na textarea (foco) */
-.suggested-response-textarea:focus {
-  outline: none; /* Remove a borda azul padrão do navegador */
-  border-color: var(--primary-color); /* Muda a cor da borda para o laranja principal */
-  box-shadow: 0 0 0 3px rgba(255, 145, 0, 0.15); /* Adiciona uma sombra sutil na cor do tema */
-}
 
 @media (max-width: 1024px) {
   .main-layout-flex {

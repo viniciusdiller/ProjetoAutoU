@@ -252,9 +252,15 @@ function displayResults(data) {
     <div class="result-item-response">
         <div class="response-header">
             <strong>Resposta Sugerida:</strong>
-            <button id="${uniqueId}" class="copy-btn" data-textarea-id="suggested-text-${index}" title="Copiar resposta">Copiar</button>
+            <button id="${uniqueId}" class="copy-btn" data-response="${suggestedResponse.replace(
+      /"/g,
+      "&quot;"
+    )}" title="Copiar resposta">Copiar</button>
         </div>
-        <textarea id="suggested-text-${index}" class="suggested-response-textarea">${suggestedResponse}</textarea>
+        <p id="suggested-text" style="white-space: pre-wrap;">${suggestedResponse.replace(
+          /\n/g,
+          "<br>"
+        )}</p>
     </div>
 </div>`;
   });
@@ -265,10 +271,9 @@ function displayResults(data) {
   // Adiciona listeners para os novos botões de cópia dinamicamente
   document.querySelectorAll(".copy-btn").forEach((button) => {
     button.addEventListener("click", () => {
-      const textareaId = button.getAttribute("data-textarea-id");
-      const responseTextarea = document.getElementById(textareaId);
+      const responseText = button.getAttribute("data-response");
       navigator.clipboard
-        .writeText(responseTextarea.value) // Lê o valor atual do textarea
+        .writeText(responseText)
         .then(() => {
           button.textContent = "Copiado!";
           setTimeout(() => {

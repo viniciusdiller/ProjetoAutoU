@@ -45,9 +45,12 @@
         overflow-y: auto;
       }
       #topics-list li {
+        width: 100%;
+        box-sizing: border-box;
         display: flex;
         justify-content: space-between;
-        padding: 0.75rem 0;
+        align-items: center;
+        padding: 0.75rem 0.5rem;
         border-bottom: 1px solid var(--border-color);
       }
       #topics-list li:last-child {
@@ -56,6 +59,8 @@
       #topics-list .topic-count {
         font-weight: 600;
         color: var(--primary-color);
+        flex-shrink: 0;
+        padding-left: 1rem;
       }
       .back-link {
         display: inline-block;
