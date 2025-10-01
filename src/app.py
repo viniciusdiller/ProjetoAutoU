@@ -70,23 +70,32 @@ except Exception as e:
 
 # Template do Prompt para o Modelo de IA
 PROMPT_TEMPLATE = """
-Analise o e-mail fornecido e retorne um objeto JSON.
-O objetivo é classificar o e-mail como "Produtivo" ou "Improdutivo".
+Você deve analisar o e-mail fornecido e retornar um objeto JSON seguindo estritamente a estrutura definida abaixo.
 
-- "Produtivo": E-mails que requerem uma ação ou resposta específica (ex: solicitações, dúvidas, atualizações de casos).
-- "Improdutivo": E-mails que não necessitam de uma ação (ex: felicitações, agradecimentos, spam).
+Antes de gerar o JSON, siga estas instruções:
+1. Classifique o e-mail como "Produtivo" ou "Improdutivo" com base nas definições:
+   - "Produtivo": E-mails que requerem uma ação ou resposta específica (ex.: solicitações, dúvidas, atualizações de casos).
+   - "Improdutivo": E-mails que não necessitam de ação (ex.: felicitações, agradecimentos, spam).
+2. Preste atenção ao idioma do e-mail e responda na mesma língua, especialmente na parte de "suggested_response".
+3. Identifique o tópico principal do e-mail em poucas palavras.
+4. Avalie o tom do e-mail como "Positivo", "Negativo" ou "Neutro".
+5. Evite fazer suposições não justificadas; baseie-se apenas no conteúdo do e-mail.
+6. Seja preciso no "confidence_score" (0.0 a 1.0) refletindo o quão certo você está da classificação.
+7. Retorne apenas o JSON, sem qualquer explicação, texto adicional ou formatação diferente.
 
 E-mail para análise:
 ---
 {email_content}
 ---
 
-O JSON de saída deve ter a seguinte estrutura em inglês:
+O JSON de saída deve ter a seguinte estrutura:
 - "classification": A categoria ("Produtivo" ou "Improdutivo").
-- "confidence_score": Um número entre 0.0 e 1.0 indicando sua confiança na classificação.
-- "key_topic": Uma palavra ou frase curta que resume o tópico principal do e-mail (ex: "Solicitação de Pagamento", "Felicitação").
+- "confidence_score": Um número entre 0.0 e 1.0 indicando a confiança na classificação.
+- "key_topic": Uma palavra ou frase curta resumindo o tópico principal do e-mail (ex.: "Solicitação de Pagamento", "Felicitação").
 - "sentiment": O tom predominante do e-mail ("Positivo", "Negativo" ou "Neutro").
-- "suggested_response": Se o e-mail for "Produtivo", sugira uma resposta curta e profissional. Se for "Improdutivo", retorne "Nenhuma resposta necessária.".
+- "suggested_response": 
+    - Se "Produtivo", sugira uma resposta curta e profissional abordando a solicitação ou dúvida.
+    - Se "Improdutivo", sugira uma resposta curta e cordial de agradecimento (ex.: "Obrigado pela informação!").
 
 Retorne apenas o JSON, sem nenhum texto, markdown ou explicação adicional.
 """
