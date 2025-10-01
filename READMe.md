@@ -1,111 +1,91 @@
-# 📧 Analisador de E-mails com IA
+# 📧 Analisador de E-mails com IA (Gemini)
 
-Uma aplicação web em **Flask/Python** que utiliza o **Google Gemini** para classificar e-mails como "Produtivo" ou "Improdutivo" e sugerir respostas automaticamente.
+Uma aplicação web inteligente construída com **Flask** e **Google Gemini** para classificar e-mails, extrair insights e sugerir respostas automaticamente, otimizando a triagem e a produtividade de equipes.
 
----
+**🔗 Link para a aplicação:** [**Acesse a demonstração aqui!**](https://email-classifier-git-main-vinicius-dillers-projects.vercel.app/)
 
-## ✨ Funcionalidades em Destaque
-
-| Funcionalidade            | Descrição                                                                                   |
-| :------------------------ | :------------------------------------------------------------------------------------------ |
-| **Classificação Gemini**  | Utiliza o modelo `gemini-2.5-flash-lite` para análise semântica e categorização.            |
-| **Múltiplas Entradas**    | Analisa texto copiado e colado ou arquivos de upload (`.txt` e `.pdf`).                     |
-| **Histórico Persistente** | Salva e exibe as últimas análises em tempo real, utilizando SQLite.                         |
-| **Exportação Segura**     | Permite baixar todo o histórico de classificações em um arquivo CSV (otimizado para Excel). |
-| **Deployment Serverless** | Configurado para fácil implementação em plataformas como o Vercel.                          |
+![Demonstração da Interface](https://i.imgur.com/Tufo4P3.gif)
+*(Dica: Grave um GIF curto da tela e adicione aqui. Ferramentas como ScreenToGif são ótimas para isso)*
 
 ---
 
-## 🚀 Como Executar o Projeto
+## ✨ Funcionalidades Principais
 
-Este projeto pode ser executado tanto via link público (Vercel) quanto localmente.
-
-### Opção 1: Acesso Online (Deployment)
-
-O projeto está configurado para ser executado no Vercel.
-
-🔗 **Link de Demonstração:** [https://email-classifier-git-main-vinicius-dillers-projects.vercel.app/](https://email-classifier-git-main-vinicius-dillers-projects.vercel.app/)
-
-_(**Nota:** O histórico de dados é persistente apenas durante a sessão do servidor serverless, sendo reiniciado após um período de inatividade.)_
-
-### Opção 2: Execução Local
-
-#### Pré-requisitos
-
-- Python 3.8+
-- pip (gerenciador de pacotes do Python)
-- **Chave de API do Google Gemini** (necessária para alimentar o modelo de IA).
-
-#### Passos para Instalação
-
-1. **Clone o repositório:**
-
-   ```bash
-   git clone [https://github.com/viniciusdiller/Email-Classifier](https://github.com/viniciusdiller/Email-Classifier)
-   cd Email-Classifier
-   ```
-
-2. **Crie e ative o ambiente virtual:**
-
-   ```bash
-   #dentro do git bash
-   python -m venv venv
-   source venv/Scripts/activate
-
-   ```
-
-3. **Instale as dependências:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure suas credenciais:**
-   **⚠️ Aviso Importante: Nunca exponha sua Chave de API!**
-
-   A chave de API do Gemini é um segredo de acesso. Expor essa chave publicamente gera riscos de segurança e custos inesperados. Crie um arquivo na raiz do projeto chamado **`.env`** e insira sua chave:
-
-   ```.env
-   GEMINI_API_KEY="SUA_CHAVE_DE_API_AQUI"
-   ```
-
-5. **Vá para a pasta src**
-
-   ```bash
-   cd src/
-   ```
-
-5. **Execute a aplicação:**
-
-   ```bash
-   flask run
-   ```
-
-6. **Acesso:** Abra seu navegador e acesse `http://127.0.0.1:5000`.
+| Funcionalidade | Descrição |
+| :--- | :--- |
+| **🤖 Classificação Inteligente** | Utiliza o modelo `gemini-pro` do Google para classificar e-mails como **"Produtivo"** ou **"Improdutivo"** com alta precisão. |
+| **📝 Análise Completa** | Além da classificação, a IA extrai o **tópico principal**, o **sentimento** (Positivo, Negativo, Neutro) e sugere uma **resposta automática**. |
+| **📂 Múltiplos Formatos** | Analise e-mails colando o texto diretamente ou fazendo o upload de múltiplos arquivos `.txt` e `.pdf` de uma só vez. |
+| **🗂️ Histórico de Análises** | Todas as análises são salvas em um banco de dados SQLite e exibidas em um histórico interativo na interface. |
+| **📊 Exportação para CSV** | Exporte o histórico completo de análises para um arquivo `.csv`, pronto para ser aberto no Excel ou em outras ferramentas. |
+| **☁️ Pronto para a Nuvem** | O projeto está configurado para deploy *serverless* na **Vercel**, garantindo escalabilidade e facilidade de manutenção. |
 
 ---
 
-## 🔒 Por Que a Chave da API deve ser Secreta?
+## 🛠️ Tecnologias Utilizadas
 
-É fundamental entender que a sua `GEMINI_API_KEY` é sua credencial de acesso aos serviços de Inteligência Artificial do Google e está diretamente ligada à sua conta de faturamento.
-
-- **Risco Financeiro:** Ao expor a chave publicamente (por exemplo, no GitHub), qualquer pessoa mal-intencionada pode usá-la para fazer milhares de chamadas de API, **gerando custos inesperados e altos** na sua fatura.
-- **Melhor Prática:** O uso de arquivos `.env` e a configuração de variáveis de ambiente em plataformas como o Vercel são a **prática padrão da indústria** para proteger credenciais, demonstrando maturidade em segurança.
-
----
-
-## 🔑 Como Obter Sua Chave de API do Gemini
-
-Para rodar o projeto localmente, você precisará gerar sua própria chave de API. É um processo rápido:
-
-1. Acesse o **Google AI Studio** ou o **Google Cloud Console**.
-2. Procure a opção para **"Criar chave de API"** (Create API Key).
-3. Copie a chave gerada.
-4. Cole-a no seu arquivo **`.env`** conforme o Passo 4 da seção de instalação.
+* **Backend:** Python, Flask
+* **Inteligência Artificial:** Google Gemini API
+* **Frontend:** HTML5, CSS3, JavaScript
+* **Banco de Dados:** SQLite
+* **Processamento de Arquivos:** PyPDF
+* **Deploy:** Vercel
 
 ---
 
-## ⚙️ Estrutura do Projeto
+## 🚀 Como Executar o Projeto Localmente
 
-A aplicação segue uma estrutura modular, com o código Python movido para a pasta `src/` para melhor organização:
+Siga os passos abaixo para ter o projeto rodando na sua máquina.
+
+#### **Pré-requisitos**
+
+* Python 3.8+
+* pip (gerenciador de pacotes)
+* Uma **chave de API do Google Gemini**. Você pode obter uma gratuitamente no [Google AI Studio](https://aistudio.google.com/).
+
+#### **Passos para Instalação**
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone [https://github.com/viniciusdiller/Email-Classifier.git](https://github.com/viniciusdiller/Email-Classifier.git)
+    cd Email-Classifier
+    ```
+
+2.  **Crie e ative um ambiente virtual:**
+    ```bash
+    # Para Windows
+    python -m venv venv
+    .\venv\Scripts\activate
+
+    # Para macOS/Linux
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Instale as dependências:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Configure a sua chave de API:**
+    Crie um arquivo chamado `.env` na raiz do projeto (no mesmo nível do `requirements.txt`) e adicione sua chave de API:
+    ```.env
+    GEMINI_API_KEY="SUA_CHAVE_DE_API_AQUI"
+    ```
+    O arquivo `.env` já está no `.gitignore` para garantir que sua chave não seja enviada para o repositório.
+
+5.  **Execute a aplicação:**
+    ```bash
+    # Navegue até a pasta do código-fonte
+    cd src/
+
+    # Inicie o servidor Flask
+    flask run
+    ```
+
+6.  **Acesse no navegador:**
+    Abra seu navegador e acesse `http://127.0.0.1:5000`.
+
+---
+
 
