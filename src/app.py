@@ -284,6 +284,20 @@ def export_history():
         print(f"Erro ao exportar histórico: {e}")
         return jsonify({'error': 'Falha ao gerar o arquivo CSV.'}), 500
 
+@app.route('/dashboard')
+def dashboard():
+    """Renderiza a página do dashboard."""
+    return render_template('dashboard.html')
+
+@app.route('/dashboard/data')
+def dashboard_data():
+    """Fornece os dados do histórico em formato JSON para o dashboard."""
+    initialize_db()
+    
+    # get_raw_history_data() já busca todos os dados que precisamos
+    history_data = get_raw_history_data() 
+    
+    return jsonify(history_data)
 
 if __name__ == '__main__':
     # Bloco para execução local

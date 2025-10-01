@@ -249,20 +249,14 @@ function displayResults(data) {
 
     // Restante da Resposta Sugerida
     allResultsHTML += `
-        <div class="result-item-response">
-            <div class="response-header">
-                <strong>Resposta Sugerida:</strong>
-                <button id="${uniqueId}" class="copy-btn" data-response="${suggestedResponse.replace(
-      /"/g,
-      "&quot;"
-    )}" title="Copiar resposta">Copiar</button>
-            </div>
-            <p id="suggested-text" style="white-space: pre-wrap;">${suggestedResponse.replace(
-              /\n/g,
-              "<br>"
-            )}</p>
+    <div class="result-item-response">
+        <div class="response-header">
+            <strong>Resposta Sugerida:</strong>
+            <button id="${uniqueId}" class="copy-btn" data-textarea-id="suggested-text-${index}" title="Copiar resposta">Copiar</button>
         </div>
-    </div>`; // Fecha o analysis-result-card
+        <textarea id="suggested-text-${index}" class="suggested-response-textarea">${suggestedResponse}</textarea>
+    </div>
+</div>`;
   });
 
   resultsArea.innerHTML = allResultsHTML;
@@ -271,9 +265,10 @@ function displayResults(data) {
   // Adiciona listeners para os novos botões de cópia dinamicamente
   document.querySelectorAll(".copy-btn").forEach((button) => {
     button.addEventListener("click", () => {
-      const responseText = button.getAttribute("data-response");
+      const textareaId = button.getAttribute("data-textarea-id");
+      const responseTextarea = document.getElementById(textareaId);
       navigator.clipboard
-        .writeText(responseText)
+        .writeText(responseTextarea.value) // Lê o valor atual do textarea
         .then(() => {
           button.textContent = "Copiado!";
           setTimeout(() => {
