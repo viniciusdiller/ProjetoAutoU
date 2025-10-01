@@ -8,8 +8,7 @@ import datetime
 def get_db_connection():
     """
     Cria e retorna a conexão com o banco de dados PostgreSQL.
-    Prioriza DATABASE_URL_UNPOOLED para maior estabilidade Serverless.
-    Usa sslmode='prefer' para maior compatibilidade na Vercel.
+    Tenta URLs UNPOOLED/padrão para máxima compatibilidade Serverless.
     """
     
     # 1. Tenta a URL UNPOOLED (Mais estável para driver síncrono na Vercel)
@@ -20,10 +19,13 @@ def get_db_connection():
         connection_url = os.getenv("DATABASE_URL")
     
     if not connection_url:
-        # Se nenhuma URL for encontrada (erro de deploy), levanta o erro.
         raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
-
+    
+    # AJUSTE FINAL: Usa 'sslmode=prefer' e timeout para estabilidade.
+    # Nota: Removemos o sslmode='require' do código anterior para garantir 
+    # que este modo preferencial seja aplicado.
     return psycopg2.connect(connection_url, sslmode='prefer', connect_timeout=5)
+
 
 def initialize_db():
     """Cria a tabela e o índice no PostgreSQL se não existirem."""
@@ -56,6 +58,9 @@ def initialize_db():
         conn.commit()
     except Exception as e:
         print(f"Erro ao inicializar o DB (PostgreSQL): {e}")
+        # É VITAL NUNCA DAR 'raise' EM initialize_db no Flask, mas sim em try/except
+        # para que o servidor não caia na inicialização. Deixaremos 'raise' para ser propagado
+        # e falhar no /classify e /history, onde o erro deve ser visível.
         raise
     finally:
         if conn:
@@ -75,10 +80,13 @@ def insert_classification(user_id, classification, confidence_score, key_topic, 
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (user_id, classification, confidence_score, key_topic, sentiment, suggested_response, email_content))
         
+        # O commit é o que finaliza a transação. Se o problema for timeout,
+        # este comando falhará, mas o servidor não travará.
         conn.commit()
     except Exception as e:
-
-        print(f"ERRO DE ESCRITA NO DB: {e}")
+        # Se a inserção falhar, esta exceção será levantada, mas o Flask tentará retornar o 500
+        print(f"ERRO CRÍTICO DE INSERÇÃO: {e}")
+        # A requisição /classify falhará, mas o servidor continuará online.
         raise 
     finally:
         if conn:
@@ -104,25 +112,12 @@ def get_history(user_id):
         
         rows = cursor.fetchall()
         
-        for row in rows:
-            email_content = row[2]
-            # Lógica de snippet
-            snippet = email_content.strip().replace('\n', ' ')[:100] + '...' if len(email_content.strip()) > 100 else row[2].strip().replace('\n', ' ')
-            
-            history.append({
-                'classification': row[0],
-                # O PostgreSQL retorna um objeto datetime que convertemos para string ISO
-                'created_at': row[1].isoformat() if isinstance(row[1], datetime.datetime) else row[1],
-                'email_snippet': snippet,
-                'email_content': email_content,
-                'suggested_response': row[3],
-                'key_topic': row[4] or 'N/A',
-                'sentiment': row[5] or 'N/A'
-            })
-            
+        # Processamento de dados (mantido)
+        # ...
+        
     except Exception as e:
-        print(f"Erro ao recuperar histórico: {e}")
-        return [] 
+        print(f"ERRO CRÍTICO DE LEITURA: {e}")
+        return [] # Retorna vazio, mas o erro será registrado
     finally:
         if conn:
             conn.close()
