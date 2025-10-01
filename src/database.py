@@ -8,8 +8,9 @@ from urllib.parse import urlparse # NOVO: Para analisar a URL
 
 def get_db_connection():
     """
-    CRÍTICO: Cria a conexão com o PostgreSQL por meio de parâmetros explícitos
-    para resolver falhas de DNS/resolução de URL em ambientes Serverless (Vercel).
+    CRÍTICO: Cria a conexão com o PostgreSQL por meio de parâmetros explícitos.
+    USA sslmode='disable' como ÚLTIMO RECURSO para contornar falhas de certificado
+    que estão impedindo a gravação de dados na Vercel.
     """
     
     # 1. Tenta a URL UNPOOLED (Mais estável para driver síncrono na Vercel)
@@ -24,11 +25,10 @@ def get_db_connection():
     
     try:
         # 3. PARSE DA URL PARA EXTRAIR COMPONENTES INDIVIDUAIS
-        # Isso resolve problemas de DNS/resolução de host no Serverless
         url = urlparse(connection_url)
         
-        # O modo SSL deve ser require para o Neon, mas se falhou, usamos prefer
-        ssl_mode = 'prefer' 
+        # AJUSTE CRÍTICO: Definir o ssl_mode como 'disable' para contornar falhas de certificado no Serverless.
+        ssl_mode = 'disable' 
         
         # 4. CONEXÃO EXPLÍCITA
         conn = psycopg2.connect(
@@ -37,15 +37,15 @@ def get_db_connection():
             password=url.password,
             host=url.hostname,
             port=url.port,
-            sslmode=ssl_mode,
+            sslmode=ssl_mode, # MODO FINAL PARA FORÇAR A CONEXÃO
             connect_timeout=5
         )
         return conn
 
     except Exception as e:
-        # Se a conexão falhar aqui, o erro será CRÍTICO, mas pelo menos sabemos que a tentativa ocorreu
+        # A requisição /classify falhará com 500, mas o servidor continua online.
         print(f"ERRO CRÍTICO DE CONEXÃO AO DB: {e}")
-        raise # Levanta o erro para que a requisição /classify falhe com 500
+        raise 
 
 
 def initialize_db():
