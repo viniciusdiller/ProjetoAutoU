@@ -33,6 +33,8 @@ app = Flask(__name__, root_path=project_root)
 # É recomendável configurar SECRET_KEY no painel de Environment Variables da Vercel.
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24)) 
 
+# NOVO: Garante que o cookie seja seguro se estiver em HTTPS/Vercel
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('VERCEL') == '1' 
 # Configuração da API do Google Generative AI (mantida)
 try:
     api_key = os.getenv("GEMINI_API_KEY")
