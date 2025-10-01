@@ -169,7 +169,7 @@ function displayResults(data) {
   }
 
   // Cria um container para os múltiplos resultados
-  let allResultsHTML = `<h2>Resultados da Análise (${resultsList.length} E-mail(s) Analisado(s))</h2>`;
+  let allResultsHTML = `<h2>Resultados da Análise</h2>`;
 
   resultsList.forEach((result, index) => {
     // Se o resultado for um erro de processamento
