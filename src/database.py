@@ -3,24 +3,27 @@ import psycopg2
 from psycopg2 import sql 
 import datetime
 
-# A URL do PostgreSQL será lida da variável de ambiente (DATABASE_URL).
-DATABASE_URL = os.getenv("DATABASE_URL_UNPOOLED") 
-
-# REMOVIDA: PSEUDO_USER_ID
+# A URL do PostgreSQL será lida das variáveis de ambiente.
 
 def get_db_connection():
-    """Cria e retorna a conexão com o banco de dados PostgreSQL."""
-    if not DATABASE_URL:
-        # Se a URL UNPOOLED não for encontrada, tentamos a URL padrão como fallback.
-        # Isso cobre cenários onde a Vercel só injeta a chave principal.
-        final_url = os.getenv("DATABASE_URL")
-        if not final_url:
-            raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
-        # Se DATABASE_URL padrão for encontrada, usamos ela
-        return psycopg2.connect(final_url, sslmode='require', connect_timeout=5)
-        
-    # Se DATABASE_URL_UNPOOLED for encontrada, usamos ela
-    return psycopg2.connect(DATABASE_URL, sslmode='require', connect_timeout=5)
+    """
+    Cria e retorna a conexão com o banco de dados PostgreSQL.
+    Prioriza DATABASE_URL_UNPOOLED para maior estabilidade Serverless.
+    Usa sslmode='prefer' para maior compatibilidade na Vercel.
+    """
+    
+    # 1. Tenta a URL UNPOOLED (Mais estável para driver síncrono na Vercel)
+    connection_url = os.getenv("DATABASE_URL_UNPOOLED")
+    
+    # 2. Faz fallback para a URL poolada (Geralmente a principal)
+    if not connection_url:
+        connection_url = os.getenv("DATABASE_URL")
+    
+    if not connection_url:
+        # Se nenhuma URL for encontrada (erro de deploy), levanta o erro.
+        raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
+
+    return psycopg2.connect(connection_url, sslmode='prefer', connect_timeout=5)
 
 def initialize_db():
     """Cria a tabela e o índice no PostgreSQL se não existirem."""
