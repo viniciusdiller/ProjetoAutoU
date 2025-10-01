@@ -1,48 +1,66 @@
 import os
 import json
-import uuid # NOVO: Para gerar um ID único
-from flask import Flask, request, jsonify, render_template, Response, session # NOVO: Importa 'session'
+from flask import Flask, request, jsonify, render_template, Response
 import google.generativeai as genai
 from dotenv import load_dotenv
 import pypdf
+import nltk                                # NOVO: Importa NLTK
+from nltk.corpus import stopwords          # NOVO: Para Stop Words
+from nltk.stem import RSLPStemmer          # NOVO: Para Stemming em Português
+import re 
 
 # Lógica de importação para suportar o ambiente serverless (Vercel)
 try:
     from database import initialize_db, insert_classification, get_history, get_raw_history_data
     from export import export_history_to_csv 
 except ImportError as e:
-    # Cria funções de placeholder com a assinatura atualizada (com user_id)
+    # Cria funções de placeholder se os módulos não forem encontrados, garantindo que o Flask inicie.
     print(f"ATENÇÃO: Falha ao importar módulos customizados: {e}")
-    # Atualiza a assinatura dos placeholders para aceitar user_id
-    def insert_classification(*args, **kwargs): pass 
     def initialize_db(): pass
-    def get_history(*args): return []
-    def get_raw_history_data(*args): return []
+    def insert_classification(*args, **kwargs): pass
+    def get_history(): return []
+    def get_raw_history_data(): return []
     def export_history_to_csv(data): return Response("Erro de Módulo", mimetype="text/plain", status=500)
 
 
 load_dotenv()
 
+NLTK_DATA_DIR = '/tmp/nltk_data'
+os.makedirs(NLTK_DATA_DIR, exist_ok=True)
+nltk.data.path.append(NLTK_DATA_DIR)
 
+# Tenta fazer o download dos recursos necessários, se não existirem
+def setup_nltk_data():
+    """Garante que os dados do NLTK necessários para Português estejam em /tmp."""
+    try:
+        # Tenta carregar os dados
+        stopwords.words('portuguese')
+        nltk.data.find('tokenizers/punkt')
+        nltk.data.find('corpora/rslp')
+    except (LookupError, FileNotFoundError):
+        print("Baixando dados do NLTK para /tmp...")
+        try:
+            # Baixa os módulos necessários
+            nltk.download('stopwords', download_dir=NLTK_DATA_DIR)
+            nltk.download('rslp', download_dir=NLTK_DATA_DIR)
+            nltk.download('punkt', download_dir=NLTK_DATA_DIR) 
+            print("Download do NLTK concluído.")
+        except Exception as e:
+            print(f"Erro ao baixar dados do NLTK: {e}")
+
+setup_nltk_data()
+
+# Ajusta o root_path para encontrar as pastas 'templates' e 'static' no diretório pai,
+# após mover 'app.py' para a pasta 'src/'.
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 app = Flask(__name__, root_path=project_root)
 
-
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24)) 
-
-# NOVO: Garante que o cookie seja seguro se estiver em HTTPS/Vercel
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24)) 
-app.config['SESSION_COOKIE_SECURE'] = os.getenv('VERCEL') == '1' 
-
-# AJUSTE CRÍTICO: Necessário para a Vercel/subdomínios para persistir o cookie de sessão (user_id)
-# Só ativa SameSite=None se estiver em produção (HTTPS)
-if os.getenv('VERCEL') == '1':
-    app.config['SESSION_COOKIE_SAMESITE'] = 'None' 
-# Configuração da API do Google Generative AI (mantida)
+# Configuração da API do Google Generative AI
 try:
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
+        # A chave deve ser configurada via Environment Variables (Vercel) ou arquivo .env (local)
         raise ValueError("A variável de ambiente GEMINI_API_KEY não foi definida.")
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-flash-lite')
@@ -50,7 +68,7 @@ except Exception as e:
     print(f"Erro ao configurar a API do Google: {e}")
     model = None
 
-# Template do Prompt (mantido)
+# Template do Prompt para o Modelo de IA
 PROMPT_TEMPLATE = """
 Analise o e-mail fornecido e retorne um objeto JSON.
 O objetivo é classificar o e-mail como "Produtivo" ou "Improdutivo".
@@ -66,48 +84,47 @@ E-mail para análise:
 O JSON de saída deve ter a seguinte estrutura em inglês:
 - "classification": A categoria ("Produtivo" ou "Improdutivo").
 - "confidence_score": Um número entre 0.0 e 1.0 indicando sua confiança na classificação.
-- "key_topic": Uma frase curta (máximo 5 palavras) ou palavra-chave que resume o tema principal do e-mail (ex: "Solicitação de Orçamento", "Atualização de Projeto", "Agradecimento Geral").
-- "sentiment": A emoção geral expressa no e-mail (ex: "Neutro", "Urgente", "Positivo", "Frustração").
 - "suggested_response": Se o e-mail for "Produtivo", sugira uma resposta curta e profissional. Se for "Improdutivo", retorne "Nenhuma resposta necessária.".
 
 Retorne apenas o JSON, sem nenhum texto, markdown ou explicação adicional.
 """
 
-# FUNÇÃO AUXILIAR PARA GARANTIR QUE CADA USUÁRIO TENHA UM ID
-def get_or_create_user_id():
-    """Verifica ou cria um user_id baseado na sessão do Flask."""
+def preprocess_text_nlp(text):
+    """
+    Executa Limpeza, Tokenização, Remoção de Stop Words e Stemming (RSLP) em Português.
+    """
+    # 1. Limpeza básica (converter para minúsculas e remover pontuação)
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', '', text) 
+
+    # 2. Tokenização
+    tokens = nltk.word_tokenize(text, language='portuguese')
+
+    # 3. Remoção de Stop Words
+    stop_words = set(stopwords.words('portuguese'))
+    # Filtra tokens que não estão na lista de stop words e que não são apenas espaços em branco
+    filtered_tokens = [word for word in tokens if word not in stop_words and word.strip()]
+
+    # 4. Stemming (Redução ao radical - RSLP para Português)
+    stemmer = RSLPStemmer()
+    stemmed_tokens = [stemmer.stem(word) for word in filtered_tokens]
     
-    # AJUSTE FINAL: Se estiver na Vercel, usamos um ID estático de teste.
-    # ISSO GARANTE QUE A ESCRITA E A LEITURA VEJAM O MESMO HISTÓRICO.
-    if os.getenv('VERCEL') == '1':
-        return 'VERCEL_HISTORICO_TESTE_ID' 
-
-    # Se estivermos no ambiente local, continuamos usando a sessão (que funciona)
-    if 'user_id' not in session:
-        # Usa UUID4 para gerar um ID de usuário único e armazena na sessão
-        session['user_id'] = str(uuid.uuid4())
-    return session['user_id']
-
-
+    # Retorna o texto pré-processado como uma string, separado por espaço
+    return ' '.join(stemmed_tokens)
 
 @app.route('/')
 def index():
-    """Renderiza a página inicial e garante o ID de sessão."""
+    """Renderiza a página inicial e garante a inicialização do DB (necessário no Serverless)."""
     initialize_db()
-    # GARANTE que o ID é criado imediatamente
-    get_or_create_user_id() 
     return render_template('index.html')
 
 @app.route('/classify', methods=['POST'])
 def classify_email():
-    """Recebe o e-mail, classifica com a IA, salva no banco (com ID de sessão) e retorna o resultado."""
+    """Recebe o e-mail, classifica com a IA, salva no banco e retorna o resultado."""
     initialize_db()
     
     if not model:
         return jsonify({'error': 'O modelo de IA não foi inicializado. Verifique a chave da API.'}), 503
-    
-    # MOVIDO PARA CIMA: OBTÉM O ID DE SESSÃO DO USUÁRIO IMEDIATAMENTE
-    user_id = get_or_create_user_id()
 
     email_content = ""
     # Extrai o conteúdo do formulário de texto ou do arquivo enviado
@@ -131,83 +148,76 @@ def classify_email():
                 print(f"Erro ao processar PDF: {e}")
                 return jsonify({'error': f'Falha ao processar o arquivo PDF. Verifique se o texto é legível.'}), 400
 
-    if not email_content.strip():
-        return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
+        if not email_content.strip():
+            return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
 
-    try:
-        prompt = PROMPT_TEMPLATE.format(email_content=email_content)
-        response = model.generate_content(prompt)
-
-        # Limpa e analisa o JSON
-        cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
         try:
-            result_json = json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
-            return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
+            prompt = PROMPT_TEMPLATE.format(email_content=email_content)
+            response = model.generate_content(prompt)
 
-        # Salva a classificação no histórico
-        classification = result_json.get("classification", "Desconhecido")
-        confidence_score = result_json.get("confidence_score", 0.0)
-        key_topic = result_json.get("key_topic", "N/A")
-        sentiment = result_json.get("sentiment", "Neutro")
-        suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
-        
-        if not isinstance(confidence_score, (int, float)):
+            # Limpa a resposta da IA para extrair apenas o JSON
+            cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
+
+            # Tenta analisar o JSON e trata erros
             try:
-                confidence_score = float(confidence_score)
-            except ValueError:
-                confidence_score = 0.0 
-        
-        # CHAMA insert_classification COM O user_id DINÂMICO
-        insert_classification(user_id, classification, confidence_score, key_topic, sentiment, suggested_response, email_content)
+                result_json = json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
+                return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
 
-        return jsonify(result_json)
+            # Salva a classificação no histórico
+            classification = result_json.get("classification", "Desconhecido")
+            confidence_score = result_json.get("confidence_score", 0.0)
+            suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
+            
+            # Garante que confidence_score seja um float
+            if not isinstance(confidence_score, (int, float)):
+                try:
+                    confidence_score = float(confidence_score)
+                except ValueError:
+                    confidence_score = 0.0 
+                    
+            insert_classification(classification, confidence_score, suggested_response, email_content)
 
-    except genai.types.generation_types.StopCandidateException as e:
-        print(f"Geração interrompida pela IA: {e}")
-        return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
-    except Exception as e:
-        print(f"Ocorreu um erro inesperado: {e}")
-        return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
+            return jsonify(result_json)
+
+        except genai.types.generation_types.StopCandidateException as e:
+            print(f"Geração interrompida pela IA: {e}")
+            return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
+        except Exception as e:
+            print(f"Ocorreu um erro inesperado: {e}")
+            return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
 
 @app.route('/history')
 def history():
-    """Retorna o histórico persistente e isolado pelo ID de sessão."""
+    """Retorna os últimos e-mails classificados."""
     initialize_db()
     
-    # OBTÉM O ID DE SESSÃO DO USUÁRIO
-    user_id = get_or_create_user_id()
+    history_data = get_history()
     
-    # CHAMA get_history COM O user_id DINÂMICO
-    history_data = get_history(user_id)
-    
-    # Processa os dados para o frontend (mantendo a estrutura de retorno)
+    # Processa os dados para adicionar o snippet para o frontend
     processed_history = []
     for row in history_data:
+        email_content = row.get('email_content', '')
+        snippet = email_content.strip().replace('\n', ' ')[:150] + '...' if len(email_content.strip()) > 150 else email_content.strip().replace('\n', ' ')
+        
         processed_history.append({
             'classification': row.get('classification', 'Desconhecido'),
             'created_at': row.get('created_at', ''),
-            'email_snippet': row.get('email_snippet', ''),
-            'email_content': row.get('email_content', ''),
-            'suggested_response': row.get('suggested_response', 'Nenhuma resposta'),
-            'key_topic': row.get('key_topic', 'N/A'),
-            'sentiment': row.get('sentiment', 'Neutro')
+            'email_snippet': snippet,
+            'email_content': email_content,
+            'suggested_response': row.get('suggested_response', 'Nenhuma resposta')
         })
         
     return jsonify(processed_history)
 
 @app.route('/export_history')
 def export_history():
-    """Exporta todo o histórico isolado para CSV pelo ID de sessão."""
+    """Exporta todo o histórico do banco de dados para um arquivo CSV."""
     initialize_db()
     
-    # OBTÉM O ID DE SESSÃO DO USUÁRIO
-    user_id = get_or_create_user_id()
-    
     try:
-        # CHAMA get_raw_history_data COM O user_id DINÂMICO
-        raw_data = get_raw_history_data(user_id)
+        raw_data = get_raw_history_data()
         return export_history_to_csv(raw_data)
         
     except Exception as e:

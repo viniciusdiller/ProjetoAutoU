@@ -1,177 +1,124 @@
-import os
-import psycopg # NOVO DRIVER
+import sqlite3
 import datetime
+import os
 
-# A URL do PostgreSQL será lida das variáveis de ambiente.
+# "/tmp" para Vercel ou normal para localhost
+if os.getenv('VERCEL'): 
+    DATABASE_NAME = '/tmp/emails.db'
+else:
+    DATABASE_NAME = 'emails.db'
 
-def get_db_connection():
-    """
-    Cria a conexão com o PostgreSQL usando o driver 'psycopg' (Serverless-friendly).
-    Tenta URLs UNPOOLED/padrão para máxima compatibilidade Serverless.
-    """
+def add_column_if_not_exists(conn, column_name, column_type):
+    """Adiciona uma coluna à tabela 'classifications' se ela ainda não existir usando PRAGMA."""
+    cursor = conn.cursor()
     
-    # Prioriza a URL UNPOOLED (Mais estável para Serverless)
-    connection_url = os.getenv("DATABASE_URL_UNPOOLED")
-    
-    if not connection_url:
-        # Fallback para a URL padrão
-        connection_url = os.getenv("DATABASE_URL")
-    
-    if not connection_url:
-        raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
-    
-    try:
-        # AJUSTE CRÍTICO: Usa 'sslmode=disable' e 'psycopg.connect' para estabilidade.
-        # O driver psycopg é mais estável e confiável em Serverless.
-        # connect_timeout=5 evita que a função Serverless trave.
-        return psycopg.connect(connection_url, sslmode='disable', connect_timeout=5)
+    # Verifica as colunas existentes usando PRAGMA table_info
+    # Colunas de interesse estão no índice 1 (nome da coluna)
+    cursor.execute("PRAGMA table_info(classifications)")
+    columns = [info[1] for info in cursor.fetchall()]
 
-    except Exception as e:
-        # Imprime o erro CRÍTICO de conexão para os logs da Vercel
-        print(f"ERRO CRÍTICO DE CONEXÃO AO DB: {e}")
-        # É VITAL dar raise para que a requisição /classify falhe com 500, expondo o erro.
-        raise 
-        
+    if column_name not in columns:
+        print(f"ADICIONANDO COLUNA: {column_name}")
+        try:
+            cursor.execute(f"ALTER TABLE classifications ADD COLUMN {column_name} {column_type}")
+            conn.commit()
+            print(f"Coluna {column_name} adicionada com sucesso.")
+        except sqlite3.OperationalError as e:
+            # Captura erros se o ALTER TABLE falhar por algum motivo (tabela bloqueada, etc.)
+            print(f"AVISO: Coluna {column_name} já pode existir ou erro de ALTER TABLE: {e}")
+
 def initialize_db():
-    """Cria a tabela e o índice no PostgreSQL se não existirem."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Cria a tabela com a nova coluna user_id
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS classifications (
-                id SERIAL PRIMARY KEY,
-                user_id TEXT NOT NULL,  -- Chave para isolamento de dados
-                classification TEXT NOT NULL,
-                confidence_score REAL NOT NULL,
-                suggested_response TEXT,
-                email_content TEXT,
-                key_topic TEXT,  
-                sentiment TEXT,  
-                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
-            );
-        """)
-        
-        # Cria um índice para a busca por usuário (performance)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_user_id 
-            ON classifications (user_id);
-        """)
-        
-        conn.commit()
-    except Exception as e:
-        print(f"Erro ao inicializar o DB (PostgreSQL): {e}")
-        raise
-    finally:
-        if conn:
-            conn.close()
+    # Cria a tabela de histórico se ela não existir
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    # 1. Criação da Tabela (se não existir)
+    # Garante a criação com todos os campos mais recentes, mas não a modifica se já existir.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS classifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            classification TEXT NOT NULL,
+            confidence_score REAL NOT NULL,
+            suggested_response TEXT,
+            email_content TEXT,
+            created_at TEXT NOT NULL,
+            key_topic TEXT,  
+            sentiment TEXT  
+        )
+    """)
+    conn.commit()
+    
+    # 2. Lógica de Migração para Atualizar Schemas Antigos
+    # Chama a função de migração
+    add_column_if_not_exists(conn, 'key_topic', 'TEXT')
+    add_column_if_not_exists(conn, 'sentiment', 'TEXT')
+    
+    conn.close()
 
-# user_id é agora o primeiro argumento
-def insert_classification(user_id, classification, confidence_score, key_topic, sentiment, suggested_response, email_content):
-    """Insere um novo registro de classificação no banco de dados para o ID de sessão."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Insere dados, usando user_id dinâmico
-        cursor.execute("""
-            INSERT INTO classifications (user_id, classification, confidence_score, key_topic, sentiment, suggested_response, email_content)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (user_id, classification, confidence_score, key_topic, sentiment, suggested_response, email_content))
-        
-        conn.commit()
-    except Exception as e:
-        print(f"ERRO CRÍTICO DE INSERÇÃO: {e}")
-        raise 
-    finally:
-        if conn:
-            conn.close()
+def insert_classification(classification, confidence_score, key_topic, sentiment, suggested_response, email_content):
+    """Insere um novo registro de classificação no banco de dados."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    created_at = datetime.datetime.now().isoformat()
+    cursor.execute("""
+        INSERT INTO classifications (classification, confidence_score, key_topic, sentiment, suggested_response, email_content, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (classification, confidence_score, key_topic, sentiment, suggested_response, email_content, created_at))
+    conn.commit()
+    conn.close()
 
-# user_id é agora o primeiro argumento
-def get_history(user_id):
-    """Recupera os últimos 20 registros APENAS para o user_id fornecido."""
-    conn = None
-    history = []
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Seleciona registros FILTRANDO por user_id
-        cursor.execute("""
-            SELECT classification, created_at, email_content, suggested_response, key_topic, sentiment
-            FROM classifications
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            LIMIT 20
-        """, (user_id,))
-        
-        rows = cursor.fetchall()
-        
-        for row in rows:
-            email_content = row[2]
-            # Lógica de snippet
-            snippet = email_content.strip().replace('\n', ' ')[:100] + '...' if len(email_content.strip()) > 100 else row[2].strip().replace('\n', ' ')
-            
-            history.append({
-                'classification': row[0],
-                # O driver psycopg retorna um objeto datetime que convertemos para string ISO
-                'created_at': row[1].isoformat() if isinstance(row[1], datetime.datetime) else row[1],
-                'email_snippet': snippet,
-                'email_content': email_content,
-                'suggested_response': row[3],
-                'key_topic': row[4] or 'N/A',
-                'sentiment': row[5] or 'N/A'
-            })
-            
-    except Exception as e:
-        print(f"ERRO CRÍTICO DE LEITURA DO DB: {e}")
-        return [] 
-    finally:
-        if conn:
-            conn.close()
-            
+def get_history():
+    # Recupera os últimos 20 registros, incluindo os novos campos.
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT classification, created_at, email_content, suggested_response, key_topic, sentiment
+        FROM classifications
+        ORDER BY created_at DESC
+        LIMIT 20
+    """)
+    
+    history = [
+        {
+            'classification': row[0],
+            'created_at': row[1],
+            'email_snippet': row[2].strip().replace('\n', ' ')[:100] + '...' if len(row[2].strip()) > 100 else row[2].strip().replace('\n', ' '),
+            'email_content': row[2], 
+            'suggested_response': row[3],
+            'key_topic': row[4] or 'N/A',
+            'sentiment': row[5] or 'N/A'
+        }
+        for row in cursor.fetchall()
+    ]
+    conn.close()
     return history
 
-def get_raw_history_data(user_id):
-    # [...] (função mantida)
-    conn = None
-    raw_history = []
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Seleciona TODOS os campos FILTRANDO por user_id
-        cursor.execute("""
-            SELECT id, created_at, classification, confidence_score, email_content, suggested_response, key_topic, sentiment
-            FROM classifications
-            WHERE user_id = %s
-            ORDER BY created_at ASC
-        """, (user_id,))
-        
-        rows = cursor.fetchall()
+def get_raw_history_data():
+    # Recupera TODOS os campos para exportação CSV.
 
-        for row in rows:
-            raw_history.append({
-                'id': row[0],
-                'created_at': row[1].isoformat() if isinstance(row[1], datetime.datetime) else row[1],
-                'classification': row[2],
-                'confidence_score': row[3],
-                'email_content': row[4],
-                'suggested_response': row[5],
-                'key_topic': row[6],
-                'sentiment': row[7]
-            })
-            
-    except Exception as e:
-        print(f"Erro ao recuperar dados brutos para exportação: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-            
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, created_at, classification, confidence_score, email_content, suggested_response, key_topic, sentiment
+        FROM classifications
+        ORDER BY created_at ASC
+    """)
+    
+    # Mapeia os dados brutos para dicionários
+    raw_history = [
+        {
+            'id': row[0],
+            'created_at': row[1],
+            'classification': row[2],
+            'confidence_score': row[3],
+            'email_content': row[4],
+            'suggested_response': row[5],
+            'key_topic': row[6],
+            'sentiment': row[7]
+        }
+        for row in cursor.fetchall()
+    ]
+    conn.close()
     return raw_history
 
 if __name__ == '__main__':
