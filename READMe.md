@@ -4,7 +4,7 @@ Uma aplicação web inteligente construída com **Flask** e **Google Gemini** pa
 
 **🔗 Link para a aplicação:** [**Acesse a demonstração aqui!**](https://email-classifier-git-main-vinicius-dillers-projects.vercel.app/)
 
-![Demonstração da Interface](.assets/demo.gif)
+![Demonstração da Interface](./assets/demo.gif)
 *(Dica: Grave um GIF curto da tela e adicione aqui. Ferramentas como ScreenToGif são ótimas para isso)*
 
 ---
@@ -87,6 +87,7 @@ Siga os passos abaixo para ter o projeto rodando na sua máquina.
     Abra seu navegador e acesse `http://127.0.0.1:5000`.
 
 ---
+
 
 
 
