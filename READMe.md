@@ -69,6 +69,12 @@ _(**Nota:** O histórico de dados é persistente apenas durante a sessão do ser
    GEMINI_API_KEY="SUA_CHAVE_DE_API_AQUI"
    ```
 
+5. **Vá para a pasta src**
+
+   ```bash
+   cd src/
+   ```
+
 5. **Execute a aplicação:**
 
    ```bash
@@ -102,3 +108,4 @@ Para rodar o projeto localmente, você precisará gerar sua própria chave de AP
 ## ⚙️ Estrutura do Projeto
 
 A aplicação segue uma estrutura modular, com o código Python movido para a pasta `src/` para melhor organização:
+
