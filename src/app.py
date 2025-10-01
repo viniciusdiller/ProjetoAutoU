@@ -76,6 +76,13 @@ Retorne apenas o JSON, sem nenhum texto, markdown ou explicação adicional.
 # FUNÇÃO AUXILIAR PARA GARANTIR QUE CADA USUÁRIO TENHA UM ID
 def get_or_create_user_id():
     """Verifica ou cria um user_id baseado na sessão do Flask."""
+    
+    # AJUSTE FINAL: Se estiver na Vercel, usamos um ID estático de teste.
+    # ISSO GARANTE QUE A ESCRITA E A LEITURA VEJAM O MESMO HISTÓRICO.
+    if os.getenv('VERCEL') == '1':
+        return 'VERCEL_HISTORICO_TESTE_ID' 
+
+    # Se estivermos no ambiente local, continuamos usando a sessão (que funciona)
     if 'user_id' not in session:
         # Usa UUID4 para gerar um ID de usuário único e armazena na sessão
         session['user_id'] = str(uuid.uuid4())
