@@ -4,15 +4,22 @@ from psycopg2 import sql
 import datetime
 
 # A URL do PostgreSQL será lida da variável de ambiente (DATABASE_URL).
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL_UNPOOLED") 
 
 # REMOVIDA: PSEUDO_USER_ID
 
 def get_db_connection():
     """Cria e retorna a conexão com o banco de dados PostgreSQL."""
     if not DATABASE_URL:
-        raise ValueError("A variável de ambiente DATABASE_URL não foi definida. Verifique a integração Vercel Postgres.")
-    # Adiciona 'sslmode=require' para Vercel/Neon por segurança
+        # Se a URL UNPOOLED não for encontrada, tentamos a URL padrão como fallback.
+        # Isso cobre cenários onde a Vercel só injeta a chave principal.
+        final_url = os.getenv("DATABASE_URL")
+        if not final_url:
+            raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
+        # Se DATABASE_URL padrão for encontrada, usamos ela
+        return psycopg2.connect(final_url, sslmode='require', connect_timeout=5)
+        
+    # Se DATABASE_URL_UNPOOLED for encontrada, usamos ela
     return psycopg2.connect(DATABASE_URL, sslmode='require', connect_timeout=5)
 
 def initialize_db():
