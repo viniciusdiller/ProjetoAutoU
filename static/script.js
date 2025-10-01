@@ -131,8 +131,6 @@ function displayResults(data) {
   const translationMap = {
     classification: "Classificação",
     confidence_score: "Nível de Confiança",
-    key_topic: "Tópico Principal", // CORRIGIDO
-    sentiment: "Sentimento",
   };
   const suggestedResponse =
     data.suggested_response || "Nenhuma resposta necessária.";
