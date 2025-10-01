@@ -148,45 +148,51 @@ def classify_email():
                 print(f"Erro ao processar PDF: {e}")
                 return jsonify({'error': f'Falha ao processar o arquivo PDF. Verifique se o texto é legível.'}), 400
 
-        if not email_content.strip():
-            return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
+    if not email_content.strip():
+        return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
 
+    try:
+        prompt = PROMPT_TEMPLATE.format(email_content=email_content)
+        response = model.generate_content(prompt)
+
+        # Limpa a resposta da IA para extrair apenas o JSON
+        cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
+
+        # Tenta analisar o JSON e trata erros
         try:
-            prompt = PROMPT_TEMPLATE.format(email_content=email_content)
-            response = model.generate_content(prompt)
+            result_json = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
+            return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
 
-            # Limpa a resposta da IA para extrair apenas o JSON
-            cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
-
-            # Tenta analisar o JSON e trata erros
+        # Salva a classificação no histórico
+        classification = result_json.get("classification", "Desconhecido")
+        confidence_score = result_json.get("confidence_score", 0.0)
+        suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
+        
+        # Adiciona campos necessários para o DB (key_topic e sentiment), usando N/A temporariamente
+        # Uma implementação futura poderia extrair esses dados do Gemini
+        key_topic = 'N/A'
+        sentiment = 'N/A'
+        
+        # Garante que confidence_score seja um float
+        if not isinstance(confidence_score, (int, float)):
             try:
-                result_json = json.loads(cleaned_response)
-            except json.JSONDecodeError:
-                print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
-                return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
+                confidence_score = float(confidence_score)
+            except ValueError:
+                confidence_score = 0.0 
+                
+        # CORREÇÃO: Passando todos os 6 argumentos obrigatórios
+        insert_classification(classification, confidence_score, key_topic, sentiment, suggested_response, email_content)
 
-            # Salva a classificação no histórico
-            classification = result_json.get("classification", "Desconhecido")
-            confidence_score = result_json.get("confidence_score", 0.0)
-            suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
-            
-            # Garante que confidence_score seja um float
-            if not isinstance(confidence_score, (int, float)):
-                try:
-                    confidence_score = float(confidence_score)
-                except ValueError:
-                    confidence_score = 0.0 
-                    
-            insert_classification(classification, confidence_score, suggested_response, email_content)
+        return jsonify(result_json)
 
-            return jsonify(result_json)
-
-        except genai.types.generation_types.StopCandidateException as e:
-            print(f"Geração interrompida pela IA: {e}")
-            return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
-        except Exception as e:
-            print(f"Ocorreu um erro inesperado: {e}")
-            return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
+    except genai.types.generation_types.StopCandidateException as e:
+        print(f"Geração interrompida pela IA: {e}")
+        return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
+    except Exception as e:
+        print(f"Ocorreu um erro inesperado: {e}")
+        return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
 
 @app.route('/history')
 def history():
@@ -199,6 +205,10 @@ def history():
     processed_history = []
     for row in history_data:
         email_content = row.get('email_content', '')
+        # CORREÇÃO: Pega os novos campos do histórico
+        key_topic = row.get('key_topic', 'N/A')
+        sentiment = row.get('sentiment', 'N/A')
+        
         snippet = email_content.strip().replace('\n', ' ')[:150] + '...' if len(email_content.strip()) > 150 else email_content.strip().replace('\n', ' ')
         
         processed_history.append({
