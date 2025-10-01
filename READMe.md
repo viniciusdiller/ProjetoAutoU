@@ -88,28 +88,4 @@ Siga os passos abaixo para ter o projeto rodando na sua máquina.
 
 ---
 
-📁 Email-Classifier/
-├── 📂 src/                     # Contém o código-fonte principal da aplicação
-│   ├── 🐍 app.py             # Lógica principal do Flask, rotas e integração com a IA
-│   ├── 🐍 database.py        # Gerenciamento do banco de dados (SQLite)
-│   └── 🐍 export.py          # Funcionalidade de exportação para CSV
-│
-├── 📂 static/                  # Arquivos estáticos (CSS, JavaScript, imagens)
-│   ├── 🎨 style.css          # Folha de estilos para a interface
-│   ├── 📜 script.js          # Lógica do frontend para interatividade
-│   └── 🖼️ favicon.jpg        # Ícone da aplicação
-│
-├── 📂 templates/               # Templates HTML renderizados pelo Flask
-│   └── 📄 index.html         # Página principal da aplicação
-│
-├── 📂 Test-Email/              # Pasta com e-mails de exemplo para testes
-│   ├── 📂 English-Email/     # E-mails de teste em inglês
-│   ├── 📂 Improdutivo/       # E-mails de teste classificados como improdutivos
-│   └── 📂 Produtivo/         # E-mails de teste classificados como produtivos
-│
-├── 🔑 .env.example             # Arquivo de exemplo para as variáveis de ambiente
-├── 🚫 .gitignore               # Especifica arquivos a serem ignorados pelo Git
-├── 📝 READMe.md                # Documentação principal do projeto
-├── 📦 requirements.txt         # Lista de dependências Python para o projeto
-└── ☁️ vercel.json              # Configurações para o deploy na Vercel
 
