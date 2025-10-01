@@ -2,7 +2,7 @@
 
 Uma aplicação web inteligente construída com **Flask** e **Google Gemini** para classificar e-mails, extrair insights e sugerir respostas automaticamente, otimizando a triagem e a produtividade de equipes.
 
-**🔗 Link para a aplicação:** [**Acesse a demonstração aqui!**](projeto-auto-u-seven.vercel.app)
+**🔗 Link para a aplicação:** [**Acesse a demonstração aqui!**](https://projeto-auto-u-seven.vercel.app/) 
 
 ![Demonstração da Interface](./assets/demo.gif)
 
@@ -87,6 +87,7 @@ Siga os passos abaixo para ter o projeto rodando na sua máquina.
     Abra seu navegador e acesse `http://127.0.0.1:5000`.
 
 ---
+
 
 
 
