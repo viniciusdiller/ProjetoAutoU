@@ -47,8 +47,8 @@ Siga os passos abaixo para ter o projeto rodando na sua máquina.
 1.  **Clone o repositório:**
 
     ```bash
-    git clone [https://github.com/viniciusdiller/Email-Classifier.git](https://github.com/viniciusdiller/Email-Classifier.git)
-    cd Email-Classifier
+    git clone [https://github.com/viniciusdiller/ProjetoAutoU]
+    cd ProjetoAutoU
     ```
 
 2.  **Crie e ative um ambiente virtual:**
@@ -102,3 +102,4 @@ Na versão hospedada na Vercel, o histórico é **temporário** e será reinicia
 Esta é uma característica comum de plataformas _serverless_ e a solução foi projetada para ser compatível com este ambiente de demonstração. Para uma aplicação em produção, a abordagem seria utilizar um serviço de banco de dados persistente (como Vercel Postgres, Neon, etc.).
 
 ---
+
