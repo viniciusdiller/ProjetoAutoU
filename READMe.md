@@ -87,6 +87,16 @@ Siga os passos abaixo para ter o projeto rodando na sua máquina.
     Abra seu navegador e acesse `http://127.0.0.1:5000`.
 
 ---
+## ⚠️ Nota sobre a Persistência do Histórico na Vercel
+
+**A funcionalidade de histórico de análises é totalmente persistente apenas ao executar o projeto localmente.**
+
+Na versão hospedada na Vercel, o histórico é **temporário** e será reiniciado após um período de inatividade da aplicação. Isso ocorre porque a Vercel, em seu plano gratuito, utiliza um sistema de arquivos efêmero (temporário). O banco de dados SQLite é salvo em uma pasta que é limpa sempre que o servidor "dorme" ou é reiniciado.
+
+Esta é uma característica comum de plataformas *serverless* e a solução foi projetada para ser compatível com este ambiente de demonstração. Para uma aplicação em produção, a abordagem seria utilizar um serviço de banco de dados persistente (como Vercel Postgres, Neon, etc.).
+
+---
+
 
 
 
