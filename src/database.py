@@ -13,7 +13,7 @@ def get_db_connection():
     if not DATABASE_URL:
         raise ValueError("A variável de ambiente DATABASE_URL não foi definida. Verifique a integração Vercel Postgres.")
     # Adiciona 'sslmode=require' para Vercel/Neon por segurança
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
+    return psycopg2.connect(DATABASE_URL, sslmode='require', connect_timeout=5)
 
 def initialize_db():
     """Cria a tabela e o índice no PostgreSQL se não existirem."""
