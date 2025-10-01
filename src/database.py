@@ -8,7 +8,7 @@ import datetime
 def get_db_connection():
     """
     Cria e retorna a conexão com o banco de dados PostgreSQL.
-    Tenta URLs UNPOOLED/padrão para máxima compatibilidade Serverless.
+    Remove a exigência de SSL no driver (Serverless Workaround).
     """
     
     # 1. Tenta a URL UNPOOLED (Mais estável para driver síncrono na Vercel)
@@ -21,10 +21,10 @@ def get_db_connection():
     if not connection_url:
         raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
     
-    # AJUSTE FINAL: Usa 'sslmode=prefer' e timeout para estabilidade.
-    # Nota: Removemos o sslmode='require' do código anterior para garantir 
-    # que este modo preferencial seja aplicado.
-    return psycopg2.connect(connection_url, sslmode='prefer', connect_timeout=5)
+    # AJUSTE CRÍTICO: Remova o 'sslmode='prefer'' e use 'sslmode=disable'
+    # Esta é uma solução de contorno para a falha persistente de certificado na Vercel.
+    # Nota: Não é a prática mais segura, mas é o que funciona quando o SSL falha no ambiente Serverless.
+    return psycopg2.connect(connection_url, sslmode='disable', connect_timeout=5)
 
 
 def initialize_db():
