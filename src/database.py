@@ -74,7 +74,8 @@ def insert_classification(user_id, classification, confidence_score, key_topic, 
         
         conn.commit()
     except Exception as e:
-        print(f"Erro ao inserir classificação no DB: {e}")
+
+        print(f"ERRO DE ESCRITA NO DB: {e}")
         raise 
     finally:
         if conn:

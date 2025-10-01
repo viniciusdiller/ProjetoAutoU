@@ -23,18 +23,22 @@ except ImportError as e:
 
 load_dotenv()
 
-# Ajusta o root_path para encontrar as pastas 'templates' e 'static'
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 app = Flask(__name__, root_path=project_root)
 
-# CONFIGURAÇÃO DE SESSÃO FLASK
-# A variável SECRET_KEY é essencial. Use uma chave segura e aleatória.
-# É recomendável configurar SECRET_KEY no painel de Environment Variables da Vercel.
+
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24)) 
 
 # NOVO: Garante que o cookie seja seguro se estiver em HTTPS/Vercel
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24)) 
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('VERCEL') == '1' 
+
+# AJUSTE CRÍTICO: Necessário para a Vercel/subdomínios para persistir o cookie de sessão (user_id)
+# Só ativa SameSite=None se estiver em produção (HTTPS)
+if os.getenv('VERCEL') == '1':
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None' 
 # Configuração da API do Google Generative AI (mantida)
 try:
     api_key = os.getenv("GEMINI_API_KEY")
