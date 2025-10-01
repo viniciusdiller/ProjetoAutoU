@@ -2,13 +2,14 @@ import os
 import psycopg2 
 from psycopg2 import sql 
 import datetime
+from urllib.parse import urlparse # NOVO: Para analisar a URL
 
 # A URL do PostgreSQL será lida das variáveis de ambiente.
 
 def get_db_connection():
     """
-    Cria e retorna a conexão com o banco de dados PostgreSQL.
-    Remove a exigência de SSL no driver (Serverless Workaround).
+    CRÍTICO: Cria a conexão com o PostgreSQL por meio de parâmetros explícitos
+    para resolver falhas de DNS/resolução de URL em ambientes Serverless (Vercel).
     """
     
     # 1. Tenta a URL UNPOOLED (Mais estável para driver síncrono na Vercel)
@@ -21,10 +22,30 @@ def get_db_connection():
     if not connection_url:
         raise ValueError("Nenhuma URL de banco de dados (UNPOOLED ou padrão) foi definida.")
     
-    # AJUSTE CRÍTICO: Remova o 'sslmode='prefer'' e use 'sslmode=disable'
-    # Esta é uma solução de contorno para a falha persistente de certificado na Vercel.
-    # Nota: Não é a prática mais segura, mas é o que funciona quando o SSL falha no ambiente Serverless.
-    return psycopg2.connect(connection_url, sslmode='disable', connect_timeout=5)
+    try:
+        # 3. PARSE DA URL PARA EXTRAIR COMPONENTES INDIVIDUAIS
+        # Isso resolve problemas de DNS/resolução de host no Serverless
+        url = urlparse(connection_url)
+        
+        # O modo SSL deve ser require para o Neon, mas se falhou, usamos prefer
+        ssl_mode = 'prefer' 
+        
+        # 4. CONEXÃO EXPLÍCITA
+        conn = psycopg2.connect(
+            database=url.path[1:],  # Remove a barra inicial (e.g., /neondb -> neondb)
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port,
+            sslmode=ssl_mode,
+            connect_timeout=5
+        )
+        return conn
+
+    except Exception as e:
+        # Se a conexão falhar aqui, o erro será CRÍTICO, mas pelo menos sabemos que a tentativa ocorreu
+        print(f"ERRO CRÍTICO DE CONEXÃO AO DB: {e}")
+        raise # Levanta o erro para que a requisição /classify falhe com 500
 
 
 def initialize_db():
