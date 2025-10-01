@@ -84,6 +84,8 @@ E-mail para análise:
 O JSON de saída deve ter a seguinte estrutura em inglês:
 - "classification": A categoria ("Produtivo" ou "Improdutivo").
 - "confidence_score": Um número entre 0.0 e 1.0 indicando sua confiança na classificação.
+- "key_topic": Uma palavra ou frase curta que resume o tópico principal do e-mail (ex: "Solicitação de Pagamento", "Felicitação").
+- "sentiment": O tom predominante do e-mail ("Positivo", "Negativo" ou "Neutro").
 - "suggested_response": Se o e-mail for "Produtivo", sugira uma resposta curta e profissional. Se for "Improdutivo", retorne "Nenhuma resposta necessária.".
 
 Retorne apenas o JSON, sem nenhum texto, markdown ou explicação adicional.
@@ -120,79 +122,120 @@ def index():
 
 @app.route('/classify', methods=['POST'])
 def classify_email():
-    """Recebe o e-mail, classifica com a IA, salva no banco e retorna o resultado."""
+    """Recebe o e-mail (texto) ou a lista de arquivos, classifica com a IA, salva e retorna os resultados."""
     initialize_db()
     
     if not model:
         return jsonify({'error': 'O modelo de IA não foi inicializado. Verifique a chave da API.'}), 503
 
-    email_content = ""
-    # Extrai o conteúdo do formulário de texto ou do arquivo enviado
+    files_to_process = []
+    
+    # 1. Extrai o conteúdo do formulário de texto
     if 'email_text' in request.form and request.form['email_text']:
         email_content = request.form['email_text']
-    elif 'file' in request.files:
-        file = request.files['file']
+        if email_content.strip():
+            files_to_process.append({'content': email_content, 'filename': 'Texto Colado'})
+    
+    # 2. Pega a lista de arquivos (usando 'files[]' como nome do campo)
+    uploaded_files = request.files.getlist('files[]')
+    
+    # 3. Processa e extrai o conteúdo de cada arquivo
+    for file in uploaded_files:
+        if file.filename == '':
+            continue
+            
+        file_content = ""
+        filename = file.filename
         
-        # Bloco de processamento de arquivos (.txt e .pdf)
-        if file.filename.endswith('.txt'):
+        if filename.endswith('.txt'):
             try:
-                email_content = file.read().decode('utf-8')
+                file_content = file.read().decode('utf-8')
             except UnicodeDecodeError:
-                return jsonify({'error': 'Não foi possível decodificar o arquivo .txt. Tente usar a codificação UTF-8.'}), 400
-        elif file.filename.endswith('.pdf'):
+                files_to_process.append({'error': f'Erro ao decodificar .txt: {filename}'})
+                continue
+        elif filename.endswith('.pdf'):
             try:
+                # O processamento de PDF pode ser lento e falhar
                 reader = pypdf.PdfReader(file)
                 text = "".join(page.extract_text() or "" for page in reader.pages)
-                email_content = text.strip()
+                file_content = text.strip()
             except Exception as e:
                 print(f"Erro ao processar PDF: {e}")
-                return jsonify({'error': f'Falha ao processar o arquivo PDF. Verifique se o texto é legível.'}), 400
+                files_to_process.append({'error': f'Falha ao processar PDF: {filename}'})
+                continue
+        else:
+            continue
 
-    if not email_content.strip():
-        return jsonify({'error': 'Nenhum conteúdo de e-mail fornecido ou o arquivo está vazio.'}), 400
+        if file_content.strip():
+            files_to_process.append({'content': file_content, 'filename': filename})
 
-    try:
-        prompt = PROMPT_TEMPLATE.format(email_content=email_content)
-        response = model.generate_content(prompt)
+    
+    if not files_to_process:
+        # Se nenhum arquivo/texto válido foi encontrado, retorna 400
+        return jsonify({'error': 'Nenhum conteúdo válido de e-mail fornecido para análise (texto ou arquivo).'}), 400
 
-        # Limpa a resposta da IA para extrair apenas o JSON
-        cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
-
-        # Tenta analisar o JSON e trata erros
+    
+    # 4. Processa cada item (texto ou arquivo) com o modelo Gemini
+    all_results = []
+    for item in files_to_process:
+        if 'error' in item:
+            all_results.append(item)
+            continue
+            
+        email_content = item['content']
+        filename = item['filename']
+        
         try:
-            result_json = json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
-            return jsonify({'error': 'A resposta da IA não estava em um formato JSON válido.'}), 500
+            prompt = PROMPT_TEMPLATE.format(email_content=email_content)
+            response = model.generate_content(prompt)
 
-        # Salva a classificação no histórico
-        classification = result_json.get("classification", "Desconhecido")
-        confidence_score = result_json.get("confidence_score", 0.0)
-        suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
-        
-        # Adiciona campos necessários para o DB (key_topic e sentiment), usando N/A temporariamente
-        # Uma implementação futura poderia extrair esses dados do Gemini
-        key_topic = 'N/A'
-        sentiment = 'N/A'
-        
-        # Garante que confidence_score seja um float
-        if not isinstance(confidence_score, (int, float)):
+            cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
+
             try:
-                confidence_score = float(confidence_score)
-            except ValueError:
-                confidence_score = 0.0 
-                
-        # CORREÇÃO: Passando todos os 6 argumentos obrigatórios
-        insert_classification(classification, confidence_score, key_topic, sentiment, suggested_response, email_content)
+                result_json = json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                print(f"Erro ao decodificar JSON. Resposta da IA: {cleaned_response}")
+                all_results.append({'error': f'A resposta da IA não estava em um formato JSON válido para: {filename}'})
+                continue
 
-        return jsonify(result_json)
+            # Extrai e valida dados
+            classification = result_json.get("classification", "Desconhecido")
+            confidence_score = result_json.get("confidence_score", 0.0)
+            suggested_response = result_json.get("suggested_response", "Nenhuma resposta")
+            
+            # CORREÇÃO: Extrai os novos campos do JSON da IA (caindo para N/A se faltar)
+            key_topic = result_json.get("key_topic", "N/A")
+            sentiment = result_json.get("sentiment", "N/A")
+            
+            # Garante que confidence_score seja um float
+            if not isinstance(confidence_score, (int, float)):
+                try:
+                    confidence_score = float(confidence_score)
+                except ValueError:
+                    confidence_score = 0.0 
+                    
+            # Salva no histórico
+            insert_classification(classification, confidence_score, key_topic, sentiment, suggested_response, email_content)
+            
+            # Adiciona o resultado à lista
+            result_json['source_filename'] = filename
+            all_results.append(result_json)
 
-    except genai.types.generation_types.StopCandidateException as e:
-        print(f"Geração interrompida pela IA: {e}")
-        return jsonify({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo."}), 500
-    except Exception as e:
-        print(f"Ocorreu um erro inesperado: {e}")
-        return jsonify({'error': f"Ocorreu um erro inesperado no servidor."}), 500
+
+        except genai.types.generation_types.StopCandidateException as e:
+            print(f"Geração interrompida pela IA: {e}")
+            all_results.append({'error': f"A IA interrompeu a geração por razões de segurança ou conteúdo: {filename}"})
+        except Exception as e:
+            print(f"Ocorreu um erro inesperado: {e}")
+            all_results.append({'error': f"Ocorreu um erro inesperado no servidor para: {filename}"})
+
+    # 5. Retorna a lista de resultados (ou o objeto único se for apenas um)
+    if len(all_results) == 1 and 'source_filename' in all_results[0]:
+        # Se for apenas um item (texto ou 1 arquivo), retorna o objeto único para não quebrar a exibição atual
+        return jsonify(all_results[0])
+    
+    # Retorna a lista completa de resultados (para o front-end processar)
+    return jsonify(all_results)
 
 @app.route('/history')
 def history():
@@ -205,9 +248,7 @@ def history():
     processed_history = []
     for row in history_data:
         email_content = row.get('email_content', '')
-        # CORREÇÃO: Pega os novos campos do histórico
-        key_topic = row.get('key_topic', 'N/A')
-        sentiment = row.get('sentiment', 'N/A')
+        # Os campos key_topic e sentiment já são recuperados pela função get_history
         
         snippet = email_content.strip().replace('\n', ' ')[:150] + '...' if len(email_content.strip()) > 150 else email_content.strip().replace('\n', ' ')
         
