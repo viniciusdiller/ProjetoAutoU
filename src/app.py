@@ -76,7 +76,7 @@ Antes de gerar o JSON, siga estas instruções:
 1. Classifique o e-mail como "Produtivo" ou "Improdutivo" com base nas definições:
    - "Produtivo": E-mails que requerem uma ação ou resposta específica (ex.: solicitações, dúvidas, atualizações de casos).
    - "Improdutivo": E-mails que não necessitam de ação (ex.: felicitações, agradecimentos, spam).
-2. Preste atenção ao idioma do e-mail e responda na mesma língua, especialmente na parte de "suggested_response".
+2. Preste atenção ao idioma do e-mail e responda na mesma língua, caso venha em inglês, responda em especialmente na parte de "suggested_response".
 3. Identifique o tópico principal do e-mail em poucas palavras.
 4. Avalie o tom do e-mail como "Positivo", "Negativo" ou "Neutro".
 5. Evite fazer suposições não justificadas; baseie-se apenas no conteúdo do e-mail.
